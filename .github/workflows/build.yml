@@ -2,10 +2,6 @@ name: Build QuietDaemon
 
 on:
   workflow_dispatch:
-    inputs:
-      release_version:
-        description: 'Which version is this release?'
-        required: true
 
 jobs:
   build-macos-intel:
@@ -30,13 +26,17 @@ jobs:
       - name: Zip QuietDaemon.app (Intel)
         run: |
           cd dist
-          zip -r "QuietDaemon_macOS_intel.zip" QuietDaemon.app/*
+          zip -r "QuietDaemon_macOS_intel.zip" QuietDaemon.app
+
+      - name: Move ZIP to Dist
+        run: |
+          mv dist/QuietDaemon_macOS_intel.zip .
 
       - name: Upload ZIP (Intel)
         uses: actions/upload-artifact@v4
         with:
           name: QuietDaemon_macOS_intel
-          path: dist/QuietDaemon_macOS_intel.zip
+          path: QuietDaemon_macOS_intel.zip
 
   build-macos-arm:
     runs-on: macos-latest
@@ -60,13 +60,17 @@ jobs:
       - name: Zip QuietDaemon.app (ARM)
         run: |
           cd dist
-          zip -r "QuietDaemon_macOS_arm.zip" QuietDaemon.app/*
+          zip -r "QuietDaemon_macOS_arm.zip" QuietDaemon.app
+
+      - name: Move ZIP to Dist
+        run: |
+          mv dist/QuietDaemon_macOS_arm.zip .
 
       - name: Upload ZIP (ARM)
         uses: actions/upload-artifact@v4
         with:
           name: QuietDaemon_macOS_arm
-          path: dist/QuietDaemon_macOS_arm.zip
+          path: QuietDaemon_macOS_arm.zip
 
   build-windows:
     runs-on: windows-latest
@@ -92,8 +96,12 @@ jobs:
           cd dist
           Compress-Archive -Path QuietDaemon\* -DestinationPath "QuietDaemon_Windows.zip"
 
+      - name: Move ZIP to Dist
+        run: |
+          Move-Item -Path "dist\QuietDaemon_Windows.zip" -Destination "QuietDaemon_Windows.zip"
+
       - name: Upload ZIP (Windows)
         uses: actions/upload-artifact@v4
         with:
           name: QuietDaemon_Windows
-          path: dist/QuietDaemon_Windows.zip
+          path: QuietDaemon_Windows.zip
