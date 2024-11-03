@@ -23,20 +23,11 @@ jobs:
       - name: Build MacOS (Intel)
         run: python3 compile.py
 
-      - name: Zip QuietDaemon.app (Intel)
-        run: |
-          cd dist
-          zip -r "QuietDaemon_macOS_intel.zip" QuietDaemon.app
-
-      - name: Move ZIP to Dist
-        run: |
-          mv dist/QuietDaemon_macOS_intel.zip .
-
-      - name: Upload ZIP (Intel)
+      - name: Upload QuietDaemon.app (Intel)
         uses: actions/upload-artifact@v4
         with:
           name: QuietDaemon_macOS_intel
-          path: QuietDaemon_macOS_intel.zip
+          path: dist/QuietDaemon.app
 
   build-macos-arm:
     runs-on: macos-latest
@@ -57,20 +48,11 @@ jobs:
       - name: Build MacOS (ARM)
         run: python3 compile.py
 
-      - name: Zip QuietDaemon.app (ARM)
-        run: |
-          cd dist
-          zip -r "QuietDaemon_macOS_arm.zip" QuietDaemon.app
-
-      - name: Move ZIP to Dist
-        run: |
-          mv dist/QuietDaemon_macOS_arm.zip .
-
-      - name: Upload ZIP (ARM)
+      - name: Upload QuietDaemon.app (ARM)
         uses: actions/upload-artifact@v4
         with:
           name: QuietDaemon_macOS_arm
-          path: QuietDaemon_macOS_arm.zip
+          path: dist/QuietDaemon.app
 
   build-windows:
     runs-on: windows-latest
@@ -91,17 +73,8 @@ jobs:
       - name: Build Windows
         run: python compile.py
 
-      - name: Zip QuietDaemon (Windows)
-        run: |
-          cd dist
-          Compress-Archive -Path QuietDaemon\* -DestinationPath "QuietDaemon_Windows.zip"
-
-      - name: Move ZIP to Dist
-        run: |
-          Move-Item -Path "dist\QuietDaemon_Windows.zip" -Destination "QuietDaemon_Windows.zip"
-
-      - name: Upload ZIP (Windows)
+      - name: Upload QuietDaemon (Windows)
         uses: actions/upload-artifact@v4
         with:
           name: QuietDaemon_Windows
-          path: QuietDaemon_Windows.zip
+          path: dist/QuietDaemon
