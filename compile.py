@@ -9,7 +9,8 @@ args = [
     '--hidden-import=zeroconf._handlers.answers',
     '--onedir',
     '--name=QuietDaemon',
-    '--icon=icon.png'
+    '--icon=icon.png',
+    '-y'
 ]
 
 PyInstaller.__main__.run(args)
