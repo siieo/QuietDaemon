@@ -1,0 +1,99 @@
+name: Build QuietDaemon
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Which version is this release?'
+        required: true
+
+jobs:
+  build-macos-intel:
+    runs-on: macos-13
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build MacOS (Intel)
+        run: python3 compile.py
+
+      - name: Zip QuietDaemon.app (Intel)
+        run: |
+          cd dist
+          zip -r "QuietDaemon_macOS_intel.zip" QuietDaemon.app
+
+      - name: Upload ZIP (Intel)
+        uses: actions/upload-artifact@v4
+        with:
+          name: QuietDaemon_macOS_intel
+          path: dist/QuietDaemon_macOS_intel.zip
+
+  build-macos-arm:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build MacOS (ARM)
+        run: python3 compile.py
+
+      - name: Zip QuietDaemon.app (ARM)
+        run: |
+          cd dist
+          zip -r "QuietDaemon_macOS_arm.zip" QuietDaemon.app
+
+      - name: Upload ZIP (ARM)
+        uses: actions/upload-artifact@v4
+        with:
+          name: QuietDaemon_macOS_arm
+          path: dist/QuietDaemon_macOS_arm.zip
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build Windows
+        run: python compile.py
+
+      - name: Zip QuietDaemon
+        run: |
+          cd dist
+          Compress-Archive -Path QuietDaemon -DestinationPath "QuietDaemon_Windows.zip"
+
+      - name: Upload ZIP (Windows)
+        uses: actions/upload-artifact@v4
+        with:
+          name: QuietDaemon_Windows
+          path: dist/QuietDaemon_Windows.zip
