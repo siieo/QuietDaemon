@@ -24,6 +24,11 @@ To execute the code, follow these steps:
 - `pymobiledevice3`
 - Python 3.8 or newer
 
+- **Windows:**
+  - Either [Apple Devices (from Microsoft Store)](https://apps.microsoft.com/detail/9np83lwlpz9k%3Fhl%3Den-US%26gl%3DUS&ved=2ahUKEwjE-svo7qyJAxWTlYkEHQpbH3oQFnoECBoQAQ&usg=AOvVaw0rZTXCFmRaHAifkEEu9tMI) app or [iTunes (from Apple website)](https://support.apple.com/en-us/106372)
+- **Linux:**
+  - [usbmuxd](https://github.com/libimobiledevice/usbmuxd) and [libimobiledevice](https://github.com/libimobiledevice/libimobiledevice)
+
 **Note:** It is highly recommended to use a virtual environment:
 
 ```
