@@ -8,6 +8,7 @@ args = [
     '--hidden-import=zeroconf._utils.ipaddress',
     '--hidden-import=zeroconf._handlers.answers',
     '--onedir',
+    '--noconfirm',
     '--name=QuietDaemon',
     '--icon=icon.png',
     '-y'
