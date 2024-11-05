@@ -50,4 +50,6 @@ app = BUNDLE(
     name='QuietDaemon.app',
     icon='icon.png',
     bundle_identifier='com.mikasa.QuietDaemon',
+    version='1.0.0',
+    short_version='1.0.0',
 )
