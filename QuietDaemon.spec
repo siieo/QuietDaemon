@@ -1,6 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
 block_cipher = None
 
+app_version = "1.0.0"
+
 a = Analysis(
     ['gui_app.py'],
     pathex=[],
