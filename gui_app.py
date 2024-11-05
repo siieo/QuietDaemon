@@ -5,20 +5,32 @@ import traceback
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtSvg import QSvgWidget
 from PyQt5.QtCore import QLocale
+from PyQt5.QtGui import QPalette, QColor
 from pymobiledevice3 import usbmux
+from PyQt5.QtWidgets import QApplication
 from pymobiledevice3.lockdown import create_using_usbmux
 
 import resources_rc
 from Sparserestore.restore import restore_files, FileToRestore
 from devicemanagement.constants import Device
 
+palette = QPalette()
+palette.setColor(QPalette.Window, QColor(45, 45, 48))
+palette.setColor(QPalette.WindowText, QColor(255, 255, 255))
+
 class App(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
         self.device = None
 
+        # Detect system language
         locale = QLocale.system().name()
-        self.language = "zh" if locale.startswith("zh") else "jp" if locale.startswith("ja") else "en"
+        if locale.startswith("ja"):
+            self.language = "ja"
+        elif locale.startswith("zh"):
+            self.language = "zh"
+        else:
+            self.language = "en"
 
         self.thermalmonitord = False
         self.disable_ota = False
@@ -27,86 +39,114 @@ class App(QtWidgets.QWidget):
         self.disable_gamed = False
         self.disable_screentime = False
         self.disable_reportcrash = False
+        self.disable_tipsd = False
 
         self.language_pack = {
-            "en": {
-                "title": "QuietDaemon",
-                "modified_by": "Modified by Mikasa-san & rponeawa from LeminLimez's Nugget.\nFree tool. If you purchased it, please report the seller.",
-                "backup_warning": "Please back up your device before using!",
-                "connect_prompt": "Please connect your device and try again!",
-                "connected": "Connected to",
-                "ios_version": "iOS",
-                "apply_changes": "Applying changes to disabled.plist...",
-                "applying_changes": "Applying changes...",
-                "success": "Changes applied successfully!",
-                "error": "An error occurred while applying changes to disabled.plist:",
-                "error_connecting": "Error connecting to device",
-                "goodbye": "Goodbye!",
-                "input_prompt": "Enter a number: ",
-                "menu_options": [
-                    "Disable thermalmonitord",
-                    "Disable OTA",
-                    "Disable UsageTrackingAgent",
-                    "Disable Game Center",
-                    "Disable Screen Time Agent",
-                    "Logs, Dumps, and Crash Reports",
-                    "Apply changes",
-                    "Refresh",
-                    "切换到简体中文"
-                ]
-            },
-            "zh": {
-                "title": "温控禁用工具",
-                "modified_by": "由 Mikasa-san 和 rponeawa 基于 LeminLimez 的 Nugget 修改。\n免费工具，若您是购买而来，请举报卖家。",
-                "backup_warning": "使用前请备份您的设备！",
-                "connect_prompt": "请连接设备并重试！",
-                "connected": "已连接到",
-                "ios_version": "iOS",
-                "apply_changes": "正在应用更改到 disabled.plist...",
-                "applying_changes": "正在应用修改...",
-                "success": "更改已成功应用！",
-                "error": "应用更改时发生错误：",
-                "error_connecting": "连接设备时发生错误",
-                "goodbye": "再见！",
-                "input_prompt": "请输入选项: ",
-                "menu_options": [
-                    "禁用温控",
-                    "禁用系统更新",
-                    "禁用使用情况日志",
-                    "禁用游戏守护进程",
-                    "禁用屏幕时间",
-                    "日志、转储和崩溃报告",
-                    "应用更改",
-                    "刷新",
-                    "日本語に切り替え"
-                ]
-            },
-            "jp": {
-                "title": "QuietDaemon",
-                "modified_by": "Mikasa-san と rponeawa によって LeminLimez の Nugget から修正されました。\n無料ツールです。購入した場合は、販売者に報告してください。",
-                "backup_warning": "使用する前にデバイスをバックアップしてください！",
-                "connect_prompt": "デバイスを接続して再試行してください！",
-                "connected": "接続先",
-                "ios_version": "iOS",
-                "apply_changes": "disabled.plist に変更を適用しています...",
-                "applying_changes": "変更を適用中...",
-                "success": "変更が正常に適用されました！",
-                "error": "disabled.plist への変更の適用中にエラーが発生しました：",
-                "error_connecting": "デバイスへの接続中にエラーが発生しました",
-                "goodbye": "さようなら！",
-                "input_prompt": "番号を入力してください：",
-                "menu_options": [
-                "thermalmonitord を無効にする",
-                "OTA を無効にする",
-                "UsageTrackingAgent を無効にする",
-                "Game Center を無効にする",
-                "Screen Time Agent を無効にする",
-                "ログ、ダンプ、およびクラッシュレポート",
-                "変更を適用する",
-                "更新する",
-                "Switch to English"
-                ]
-            }
+                "en": {
+                        "title": "QuietDaemon",
+                        "modified_by": "Modified by Mikasa-san, based on rponeawa's modifications of LeminLimez's Nugget.\nThis is a free tool. If you purchased it, please report the seller.",
+                        "backup_warning": "Please back up your device before using!",
+                        "connect_prompt": "Please connect your device and try again!",
+                        "connected": "Connected to",
+                        "ios_version": "iOS",
+                        "apply_changes": "Applying changes to disabled.plist...",
+                        "applying_changes": "Applying changes...",
+                        "success": "Changes applied successfully!",
+                        "error": "An error occurred while applying changes to disabled.plist:",
+                        "error_connecting": "Error connecting to device",
+                        "goodbye": "Goodbye!",
+                        "menu_options": [
+                                "Disable thermalmonitord",
+                                "Disable OTA",
+                                "Disable UsageTrackingAgent",
+                                "Disable Game Center",
+                                "Disable Screen Time Agent",
+                                "Disable Logs, Dumps, and Crash Reports",
+                                "Disable Tips",
+                                "Apply changes",
+                                "Refresh",
+                                "Choose Language"
+                        ],
+                        "menu_notes": [
+                                "Disables temperature monitoring daemon to reduce system checks.",
+                                "Stops over-the-air updates to prevent auto-downloads.",
+                                "Disables usage tracking for improved privacy.",
+                                "Turns off Game Center background services.",
+                                "Disables Screen Time monitoring features.",
+                                "Stops logs, dumps, and crash reports collection.",
+                                "Disables the Tips service and notifications."
+                        ]
+                },
+                "zh": {
+                        "title": "温控禁用工具",
+                        "modified_by": "由 Mikasa-san 基于 rponeawa 对 LeminLimez 的 Nugget 进行修改。\n这是一个免费工具。若您是购买而来，请举报卖家。",
+                        "backup_warning": "使用前请备份您的设备！",
+                        "connect_prompt": "请连接设备并重试！",
+                        "connected": "已连接到",
+                        "ios_version": "iOS",
+                        "apply_changes": "正在应用更改到 disabled.plist...",
+                        "applying_changes": "正在应用修改...",
+                        "success": "更改已成功应用！",
+                        "error": "应用更改时发生错误：",
+                        "error_connecting": "连接设备时发生错误",
+                        "goodbye": "再见！",
+                        "menu_options": [
+                                "禁用温控",
+                                "禁用系统更新",
+                                "禁用使用情况日志",
+                                "禁用游戏守护进程",
+                                "禁用屏幕时间",
+                                "禁用日志、转储和崩溃报告",
+                                "禁用小贴士",
+                                "应用更改",
+                                "刷新",
+                                "选择语言"
+                        ],
+                        "menu_notes": [
+                                "禁用温度监控服务，减少系统检查。",
+                                "停止系统更新，防止自动下载。",
+                                "禁用使用情况追踪，增强隐私保护。",
+                                "关闭游戏中心后台服务。",
+                                "禁用屏幕时间监控功能。",
+                                "停止日志、转储和崩溃报告收集。",
+                                "禁用提示服务和通知。"
+                        ]
+                },
+                "ja": {
+                        "title": "QuietDaemon",
+                        "modified_by": "Mikasa-san が rponeawa の LeminLimez の Nugget 修正に基づき、さらに変更を加えました。\nこのツールは無料です。購入した場合は、販売者を報告してください。",
+                        "backup_warning": "使用する前にデバイスをバックアップしてください！",
+                        "connect_prompt": "デバイスを接続して再試行してください！",
+                        "connected": "接続先",
+                        "ios_version": "iOS",
+                        "apply_changes": "disabled.plist に変更を適用しています...",
+                        "applying_changes": "変更を適用中...",
+                        "success": "変更が正常に適用されました！",
+                        "error": "disabled.plist への変更の適用中にエラーが発生しました：",
+                        "error_connecting": "デバイスへの接続中にエラーが発生しました",
+                        "goodbye": "さようなら！",
+                        "menu_options": [
+                                "thermalmonitord を無効にする",
+                                "OTA を無効にする",
+                                "UsageTrackingAgent を無効にする",
+                                "Game Center を無効にする",
+                                "Screen Time Agent を無効にする",
+                                "ログ、ダンプ、クラッシュレポートを無効にする",
+                                "ヒントを無効にする",
+                                "変更を適用する",
+                                "更新する",
+                                "言語を選択してください"
+                        ],
+                        "menu_notes": [
+                                "システムチェックを減らすために温度モニタリングを無効化します。",
+                                "自動ダウンロードを防ぐためにOTA更新を停止します。",
+                                "プライバシー向上のために使用状況追跡を無効化します。",
+                                "Game Centerのバックグラウンドサービスをオフにします。",
+                                "スクリーンタイムのモニタリング機能を無効化します。",
+                                "ログ、ダンプ、クラッシュレポートの収集を停止します。",
+                                "ヒントサービスと通知を無効化します。"
+                        ]
+                }
         }
 
         self.init_ui()
@@ -145,34 +185,51 @@ class App(QtWidgets.QWidget):
         self.layout.addWidget(self.device_info)
 
         self.thermalmonitord_checkbox = QtWidgets.QCheckBox(self.language_pack[self.language]["menu_options"][0])
+        self.thermalmonitord_checkbox.setToolTip(self.language_pack[self.language]["menu_notes"][0])
         self.layout.addWidget(self.thermalmonitord_checkbox)
 
         self.disable_ota_checkbox = QtWidgets.QCheckBox(self.language_pack[self.language]["menu_options"][1])
+        self.disable_ota_checkbox.setToolTip(self.language_pack[self.language]["menu_notes"][1])
         self.layout.addWidget(self.disable_ota_checkbox)
 
         self.disable_usage_tracking_checkbox = QtWidgets.QCheckBox(self.language_pack[self.language]["menu_options"][2])
+        self.disable_usage_tracking_checkbox.setToolTip(self.language_pack[self.language]["menu_notes"][2])
         self.layout.addWidget(self.disable_usage_tracking_checkbox)
 
         self.disable_gamed_checkbox = QtWidgets.QCheckBox(self.language_pack[self.language]["menu_options"][3])
+        self.disable_gamed_checkbox.setToolTip(self.language_pack[self.language]["menu_notes"][3])
         self.layout.addWidget(self.disable_gamed_checkbox)
 
         self.disable_screentime_checkbox = QtWidgets.QCheckBox(self.language_pack[self.language]["menu_options"][4])
+        self.disable_screentime_checkbox.setToolTip(self.language_pack[self.language]["menu_notes"][4])
         self.layout.addWidget(self.disable_screentime_checkbox)
 
         self.disable_reportcrash_checkbox = QtWidgets.QCheckBox(self.language_pack[self.language]["menu_options"][5])
+        self.disable_reportcrash_checkbox.setToolTip(self.language_pack[self.language]["menu_notes"][5])
         self.layout.addWidget(self.disable_reportcrash_checkbox)
 
-        self.apply_button = QtWidgets.QPushButton(self.language_pack[self.language]["menu_options"][6])
+        self.disable_tipsd_checkbox = QtWidgets.QCheckBox(self.language_pack[self.language]["menu_options"][6])
+        self.disable_tipsd_checkbox.setToolTip(self.language_pack[self.language]["menu_notes"][6])
+        self.layout.addWidget(self.disable_tipsd_checkbox)
+
+        self.apply_button = QtWidgets.QPushButton(self.language_pack[self.language]["menu_options"][7])
+        self.apply_button.setStyleSheet("color: white")
         self.apply_button.clicked.connect(self.apply_changes)
         self.layout.addWidget(self.apply_button)
 
-        self.refresh_button = QtWidgets.QPushButton(self.language_pack[self.language]["menu_options"][7])
+        self.refresh_button = QtWidgets.QPushButton(self.language_pack[self.language]["menu_options"][8])
+        self.refresh_button.setStyleSheet("color: white")
         self.refresh_button.clicked.connect(self.get_device_info)
         self.layout.addWidget(self.refresh_button)
 
-        self.switch_language_button = QtWidgets.QPushButton(self.language_pack[self.language]["menu_options"][8])
-        self.switch_language_button.clicked.connect(self.switch_language)
-        self.layout.addWidget(self.switch_language_button)
+        self.language_menu_button = QtWidgets.QPushButton(self.language_pack[self.language]["menu_options"][9])
+        self.language_menu_button.setStyleSheet("text-align: center; color: white;") 
+        self.language_menu = QtWidgets.QMenu()
+        self.language_menu.addAction("English", lambda: self.change_language("en"))
+        self.language_menu.addAction("简体中文", lambda: self.change_language("zh"))
+        self.language_menu.addAction("日本語", lambda: self.change_language("ja"))
+        self.language_menu_button.setMenu(self.language_menu)
+        self.layout.addWidget(self.language_menu_button)
 
         self.setLayout(self.layout)
         self.show()
@@ -226,6 +283,7 @@ class App(QtWidgets.QWidget):
         self.disable_gamed_checkbox.setEnabled(not disable)
         self.disable_screentime_checkbox.setEnabled(not disable)
         self.disable_reportcrash_checkbox.setEnabled(not disable)
+        self.disable_tipsd_checkbox.setEnabled(not disable)
         self.apply_button.setEnabled(not disable)
 
     def update_device_info(self):
@@ -255,6 +313,7 @@ class App(QtWidgets.QWidget):
                 "com.apple.UsageTrackingAgent": self.disable_usage_tracking_checkbox.isChecked(),
                 "com.apple.gamed": self.disable_gamed_checkbox.isChecked(),
                 "com.apple.ScreenTimeAgent": self.disable_screentime_checkbox.isChecked(),
+                "com.apple.tipsd": self.disable_tipsd_checkbox.isChecked(),
         }
 
         report_crash_services = [
@@ -345,11 +404,14 @@ class App(QtWidgets.QWidget):
             QtWidgets.QMessageBox.critical(self, "Error", self.language_pack[self.language]["error"] + str(e))
             print(traceback.format_exc())
         finally:
-            self.apply_button.setText(self.language_pack[self.language]["menu_options"][6])
+            self.apply_button.setText(self.language_pack[self.language]["menu_options"][7])
             self.apply_button.setEnabled(True)
 
-    def switch_language(self):
-        self.language = "zh" if self.language == "en" else "jp" if self.language == "zh" else "en"
+    def change_language(self, lang_code):
+        self.language = lang_code
+        self.update_ui_texts()
+
+    def update_ui_texts(self):
         self.setWindowTitle(self.language_pack[self.language]["title"])
 
         # Update all UI texts based on the new language
@@ -361,22 +423,39 @@ class App(QtWidgets.QWidget):
             self.device_info.setText(self.language_pack[self.language]["connect_prompt"])
         
         menu_options = self.language_pack[self.language]["menu_options"]
-        
-        # Using a loop to set menu option texts
+        menu_notes = self.language_pack[self.language]["menu_notes"]
+        # Set checkbox labels and tooltips
         self.thermalmonitord_checkbox.setText(menu_options[0])
+        self.thermalmonitord_checkbox.setToolTip(menu_notes[0])
+    
         self.disable_ota_checkbox.setText(menu_options[1])
+        self.disable_ota_checkbox.setToolTip(menu_notes[1])
+    
         self.disable_usage_tracking_checkbox.setText(menu_options[2])
+        self.disable_usage_tracking_checkbox.setToolTip(menu_notes[2])
+    
         self.disable_gamed_checkbox.setText(menu_options[3])
+        self.disable_gamed_checkbox.setToolTip(menu_notes[3])
+    
         self.disable_screentime_checkbox.setText(menu_options[4])
+        self.disable_screentime_checkbox.setToolTip(menu_notes[4])
+    
         self.disable_reportcrash_checkbox.setText(menu_options[5])
+        self.disable_reportcrash_checkbox.setToolTip(menu_notes[5])
+
+        self.disable_tipsd_checkbox.setText(menu_options[6])
+        self.disable_tipsd_checkbox.setToolTip(menu_notes[6])
+
 
         # Set button texts
-        self.apply_button.setText(menu_options[6])
-        self.refresh_button.setText(menu_options[7])
-        self.switch_language_button.setText(menu_options[8])
+        self.apply_button.setText(menu_options[7])
+        self.refresh_button.setText(menu_options[8])
+        self.language_menu_button.setText(menu_options[9])
 
 if __name__ == "__main__":
     import sys
     app = QtWidgets.QApplication(sys.argv)
+    app.setStyle("Fusion")
+    app.setPalette(palette)
     window = App()
     sys.exit(app.exec_())

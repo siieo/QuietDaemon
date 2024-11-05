@@ -7,11 +7,12 @@ A tool used to disable various daemons on iOS devices to prevent throttling, scr
 - **Disable UsageTrackingAgent**
 - **Disable Game Center**
 - **Disable Screen Time Agent**
-- **Logs, Dumps, and Crash Reports**
+- **Disable Logs, Dumps, and Crash Reports**
+- **Disable Tips**
 
 More daemons will be added in the future.
 
-Works on all versions below 18.1; note that thermal throttling may not be completely disabled on A15+ devices.
+Sparserestore works on all versions iOS 17.0-17.7 and iOS 18.0-18.1 beta 4. There is partial support for iOS 17.7.1 and iOS 18.1 beta 5+.
 
 <img src="overview.png" style="height:300px;">
 
