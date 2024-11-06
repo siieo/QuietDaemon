@@ -18,6 +18,10 @@ Compatible with all versions of iOS.
   <img src="overview.png" style="height:300px;">
 </p>
 
+## Compatibility
+
+QuietDaemon is safe to use alongside the [**Nugget**](https://github.com/leminlimez/Nugget) app. Both tools can operate independently, and using QuietDaemon will not interfere with Nugget's functionality.
+
 ## Running the Program
 
 To execute the code, follow these steps:
