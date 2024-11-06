@@ -1,20 +1,22 @@
 # QuietDaemon
 
-A tool used to disable various daemons on iOS devices to prevent throttling, screen dimming, and other behaviors when devices overheat. This tool can disable:
+A tool used to disable various daemons on iOS devices to prevent throttling, screen dimming, and other behaviors when devices overheat. This tool can disable the following:
 
-- **Disable thermalmonitord**
-- **Disable OTA**
-- **Disable UsageTrackingAgent**
-- **Disable Game Center**
-- **Disable Screen Time Agent**
-- **Disable Logs, Dumps, and Crash Reports**
-- **Disable Tips**
+- **Thermal Monitoring Daemon (thermalmonitord)**
+- **Over-the-Air (OTA) Updates**
+- **Usage Tracking Agent**
+- **Game Center**
+- **Screen Time Agent**
+- **Logging, Dumps, and Crash Reports**
+- **Tips**
 
 More daemons will be added in the future.
 
-Sparserestore works on all versions iOS 17.0-17.7 and iOS 18.0-18.1 beta 4. There is partial support for iOS 17.7.1 and iOS 18.1 beta 5+.
+Compatible with all versions of iOS.
 
-<img src="overview.png" style="height:300px;">
+<p align="center">
+  <img src="overview.png" style="height:300px;">
+</p>
 
 ## Running the Program
 
@@ -40,12 +42,13 @@ python3 gui_app.py
 ```
 Note: It may be either `python`/`pip` or `python3`/`pip3` depending on your path.
 
-**Find My should be turned off to use this tool.**
+**Important:** Ensure "Find My" is turned off to use this tool.
 
-**Please note that the iPhone battery will be displayed as an unknown part/unverified in Settings after disabling thermalmonitord.**
+**Warning:** After disabling thermalmonitord, the iPhone battery status will display as "Unknown Part" or "Unverified" in Settings.
 
 ## Credits
-- Modified Again from [rponeawa](https://github.com/rponeawa)/[thermalmonitordDisabler](https://github.com/rponeawa/thermalmonitordDisabler)
-- Modified from [leminlimez](https://github.com/leminlimez)/[Nugget](https://github.com/leminlimez/Nugget)
+- Modified from [rponeawa](https://github.com/rponeawa)/[thermalmonitordDisabler](https://github.com/rponeawa/thermalmonitordDisabler)
+- Further modified from [leminlimez](https://github.com/leminlimez)/[Nugget](https://github.com/leminlimez/Nugget)
 - [JJTech](https://github.com/JJTech0130) for Sparserestore/[TrollRestore](https://github.com/JJTech0130/TrollRestore)
 - [pymobiledevice3](https://github.com/doronz88/pymobiledevice3)
+
