@@ -16,8 +16,6 @@ args = [
     '--optimize=2'
 ]
 
-PyInstaller.__main__.run(args)
-
 if platform == "darwin":
     # add --windowed arg for macOS
     args.append('--windowed')
