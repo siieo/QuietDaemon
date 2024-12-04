@@ -84,7 +84,7 @@ jobs:
 
       - name: Build Windows
         run: |
-          pyinstaller --noconfirm QuietDaemon.spec
+          python compile.py
 
       - name: Zip QuietDaemon
         run: |
