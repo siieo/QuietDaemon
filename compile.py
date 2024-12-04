@@ -13,7 +13,6 @@ args = [
     '--noconfirm',
     '--name=QuietDaemon',
     '--icon=icon.png',
-    '-y',
     '--optimize=2'
 ]
 
