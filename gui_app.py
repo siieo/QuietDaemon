@@ -9,7 +9,6 @@ from pymobiledevice3.lockdown import create_using_usbmux
 from Sparserestore.restore import restore_files, FileToRestore
 from devicemanagement.constants import Device
 
-# Set dark UI palette
 palette = QPalette()
 palette.setColor(QPalette.Window, QColor(45, 45, 48))
 palette.setColor(QPalette.WindowText, QColor(255, 255, 255))
@@ -18,6 +17,7 @@ class App(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
         self.device = None
+        self.skip_setup = True
 
         locale = QLocale.system().name()
         if locale.startswith("ja"):
@@ -35,6 +35,7 @@ class App(QtWidgets.QWidget):
                 "connect_prompt": "Please connect your device and try again!",
                 "connected": "Connected to",
                 "ios_version": "iOS",
+                "apply_changes": "Applying changes to disabled.plist...",
                 "success": "Plist updated successfully!",
                 "error": "An error occurred while updating plist:",
                 "error_connecting": "Error connecting to device: "
@@ -60,7 +61,6 @@ class App(QtWidgets.QWidget):
         self.device_info = QtWidgets.QLabel(self.language_pack[self.language]["backup_warning"])
         self.layout.addWidget(self.device_info)
 
-        # String field
         self.input_group = QtWidgets.QGroupBox("Edit Preferences.plist Fields")
         self.input_layout = QtWidgets.QFormLayout()
 
@@ -68,7 +68,6 @@ class App(QtWidgets.QWidget):
         self.title_input.setPlaceholderText("cachedPassbookTitle value (e.g., Hitori)")
         self.input_layout.addRow("cachedPassbookTitle:", self.title_input)
 
-        # Boolean checkboxes
         self.bool_keys = {
             "shouldShowiCloudSpecifiers": QtWidgets.QCheckBox("shouldShowiCloudSpecifiers"),
             "showExposureNotificationRow": QtWidgets.QCheckBox("showExposureNotificationRow"),
@@ -81,9 +80,9 @@ class App(QtWidgets.QWidget):
             cb.setChecked(True)
             self.input_layout.addRow(cb)
 
-        self.save_button = QtWidgets.QPushButton("Save All Changes")
-        self.save_button.clicked.connect(self.save_preferences)
-        self.input_layout.addRow(self.save_button)
+        self.apply_button = QtWidgets.QPushButton("Apply Changes")
+        self.apply_button.clicked.connect(self._execute_changes)
+        self.input_layout.addRow(self.apply_button)
 
         self.input_group.setLayout(self.input_layout)
         self.layout.addWidget(self.input_group)
@@ -118,48 +117,67 @@ class App(QtWidgets.QWidget):
                     print(traceback.format_exc())
                     return
 
-        self.device = None
-        self.device_info.setText(self.language_pack[self.language]["connect_prompt"])
-
-    def save_preferences(self):
-        title_value = self.title_input.text().strip()
-        if not title_value:
-            QtWidgets.QMessageBox.warning(self, "Input Required", "Please enter a value for cachedPassbookTitle.")
-            return
-
+    def _execute_changes(self):
         try:
-            plist_dict = {
-                "cachedPassbookTitle": title_value
-            }
+            files_to_restore = []
+            print("\n" + self.language_pack[self.language]["apply_changes"])
+            plist_dict = {"cachedPassbookTitle": self.title_input.text().strip()}
 
             for key, checkbox in self.bool_keys.items():
                 plist_dict[key] = checkbox.isChecked()
 
             plist_data = plistlib.dumps(plist_dict, fmt=plistlib.FMT_XML)
 
-            files_to_restore = [
-                FileToRestore(
-                    contents=plist_data,
-                    restore_path="Library/Preferences/com.apple.Preferences.plist",
-                    domain="HomeDomain",
-                    owner=0,
-                    group=0
-                ),
-                FileToRestore(
-                    contents=plist_data,
-                    restore_path="mobile/com.apple.Preferences.plist",
-                    domain="ManagedPreferencesDomain",
-                    owner=0,
-                    group=0
-                )
-            ]
+            files_to_restore.append(FileToRestore(
+                contents=plist_data,
+                restore_path="Library/Preferences/com.apple.Preferences.plist",
+                domain="HomeDomain",
+                owner=0,
+                group=0
+            ))
 
-            restore_files(files=files_to_restore, reboot=False, lockdown_client=self.device.ld)
+            files_to_restore.append(FileToRestore(
+                contents=plist_data,
+                restore_path="mobile/com.apple.Preferences.plist",
+                domain="ManagedPreferencesDomain",
+                owner=0,
+                group=0
+            ))
+
+            self.add_skip_setup(files_to_restore)
+
+            restore_files(files=files_to_restore, reboot=True, lockdown_client=self.device.ld)
             QtWidgets.QMessageBox.information(self, "Success", self.language_pack[self.language]["success"])
 
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Error", f"{self.language_pack[self.language]['error']} {e}")
             print(traceback.format_exc())
+
+    def add_skip_setup(self, files_to_restore):
+        if self.skip_setup:
+            cloud_config_plist = {
+                "SkipSetup": [
+                    "WiFi", "Location", "Restore", "SIMSetup", "Android", "AppleID", "IntendedUser", "TOS",
+                    "Siri", "ScreenTime", "Diagnostics", "SoftwareUpdate", "Passcode", "Biometric", "Payment",
+                    "Zoom", "DisplayTone", "MessagingActivationUsingPhoneNumber", "HomeButtonSensitivity",
+                    "CloudStorage", "ScreenSaver", "TapToSetup", "Keyboard", "PreferredLanguage",
+                    "SpokenLanguage", "WatchMigration", "OnBoarding", "TVProviderSignIn", "TVHomeScreenSync",
+                    "Privacy", "TVRoom", "iMessageAndFaceTime", "AppStore", "Safety", "Multitasking",
+                    "ActionButton", "TermsOfAddress", "AccessibilityAppearance", "Welcome", "Appearance",
+                    "RestoreCompleted", "UpdateCompleted"
+                ],
+                "AllowPairing": True,
+                "ConfigurationWasApplied": True,
+                "CloudConfigurationUIComplete": True,
+                "ConfigurationSource": 0,
+                "PostSetupProfileWasInstalled": True,
+                "IsSupervised": False,
+            }
+            files_to_restore.append(FileToRestore(
+                contents=plistlib.dumps(cloud_config_plist),
+                restore_path="systemgroup.com.apple.configurationprofiles/Library/ConfigurationProfiles/CloudConfigurationDetails.plist",
+                domain="SysSharedContainerDomain-."
+            ))
 
 if __name__ == "__main__":
     import sys
