@@ -92,9 +92,10 @@ class ApplyWorker(QThread):
             group=0
         ))
         self.skip_setup_func(files_to_restore)
-        # Use async context manager
+        # ✅ Correct usage: async context manager
         async with restore_files(files=files_to_restore, reboot=True, lockdown_client=self.device.ld):
-            pass  # The restoration is handled inside the context manager
+            # The restore operation runs inside this block
+            pass
 
 
 class App(QtWidgets.QWidget):
