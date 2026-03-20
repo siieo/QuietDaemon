@@ -1,10 +1,11 @@
 import platform
 import plistlib
 import traceback
+import asyncio
 
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtSvg import QSvgWidget
-from PyQt5.QtCore import QLocale
+from PyQt5.QtCore import QLocale, QThread, pyqtSignal
 from PyQt5.QtGui import QPalette, QColor
 from pymobiledevice3 import usbmux
 from PyQt5.QtWidgets import QApplication
@@ -18,10 +19,90 @@ palette = QPalette()
 palette.setColor(QPalette.Window, QColor(45, 45, 48))
 palette.setColor(QPalette.WindowText, QColor(255, 255, 255))
 
+
+class DeviceWorker(QThread):
+    device_ready = pyqtSignal(object)
+    error = pyqtSignal(str)
+
+    def run(self):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            device = loop.run_until_complete(self._get_device())
+            self.device_ready.emit(device)
+        except Exception as e:
+            self.error.emit(str(e))
+        finally:
+            loop.close()
+
+    async def _get_device(self):
+        connected_devices = await usbmux.list_devices()
+        for current_device in connected_devices:
+            if current_device.is_usb:
+                try:
+                    ld = await create_using_usbmux(serial=current_device.serial)
+                    vals = ld.all_values
+                    locale = vals.get('Locale', 'en')
+                    return Device(
+                        uuid=current_device.serial,
+                        name=vals['DeviceName'],
+                        version=vals['ProductVersion'],
+                        build=vals['BuildVersion'],
+                        model=vals['ProductType'],
+                        locale=locale,
+                        ld=ld
+                    )
+                except Exception as e:
+                    raise Exception(f"Error connecting to device {current_device.serial}: {e}")
+        return None
+
+
+class ApplyWorker(QThread):
+    finished = pyqtSignal(bool, str)
+    progress = pyqtSignal(str)
+
+    def __init__(self, device, files_to_restore_func, skip_setup_func, language_pack, language):
+        super().__init__()
+        self.device = device
+        self.files_to_restore_func = files_to_restore_func
+        self.skip_setup_func = skip_setup_func
+        self.language_pack = language_pack
+        self.language = language
+
+    def run(self):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(self._apply())
+            self.finished.emit(True, self.language_pack[self.language]["success"])
+        except Exception as e:
+            self.finished.emit(False, str(e))
+        finally:
+            loop.close()
+
+    async def _apply(self):
+        files_to_restore = []
+        self.progress.emit(self.language_pack[self.language]["apply_changes"])
+        plist_data = self.files_to_restore_func()
+        files_to_restore.append(FileToRestore(
+            contents=plist_data,
+            restore_path="com.apple.xpc.launchd/disabled.plist",
+            domain="DatabaseDomain",
+            owner=0,
+            group=0
+        ))
+        self.skip_setup_func(files_to_restore)
+        # Use async context manager
+        async with restore_files(files=files_to_restore, reboot=True, lockdown_client=self.device.ld):
+            pass  # The restoration is handled inside the context manager
+
+
 class App(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
         self.device = None
+        self.device_worker = None
+        self.apply_worker = None
 
         # Detect system language
         locale = QLocale.system().name()
@@ -159,7 +240,6 @@ class App(QtWidgets.QWidget):
 
     def init_ui(self):
         self.setWindowTitle(self.language_pack[self.language]["title"])
-
         self.set_font()
         
         self.layout = QtWidgets.QVBoxLayout()
@@ -168,7 +248,6 @@ class App(QtWidgets.QWidget):
         self.layout.addWidget(self.modified_by_label)
 
         self.icon_layout = QtWidgets.QHBoxLayout()
-
         self.icon_layout.setAlignment(QtCore.Qt.AlignLeft)
         self.icon_layout.setSpacing(10)
 
@@ -176,9 +255,7 @@ class App(QtWidgets.QWidget):
         self.github_icon.setFixedSize(24, 24)
         self.github_icon.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
         self.github_icon.mouseReleaseEvent = lambda event: self.open_link("https://github.com/mikasa-san/QuietDaemon")
-
         self.icon_layout.addWidget(self.github_icon)
-
         self.layout.addLayout(self.icon_layout)
 
         self.device_info = QtWidgets.QLabel(self.language_pack[self.language]["backup_warning"])
@@ -241,39 +318,30 @@ class App(QtWidgets.QWidget):
             print(f"Error opening link {url}: {str(e)}")
 
     def get_device_info(self):
-        connected_devices = usbmux.list_devices()
+        self.disable_controls(True)
+        self.device_info.setText(self.language_pack[self.language]["apply_changes"])
 
-        if not connected_devices:
-            self.device = None
+        if self.device_worker and self.device_worker.isRunning():
+            self.device_worker.terminate()
+            self.device_worker.wait()
+
+        self.device_worker = DeviceWorker()
+        self.device_worker.device_ready.connect(self.on_device_ready)
+        self.device_worker.error.connect(self.on_device_error)
+        self.device_worker.start()
+
+    def on_device_ready(self, device):
+        self.device = device
+        if device:
+            self.update_device_info()
+            self.disable_controls(False)
+        else:
             self.device_info.setText(self.language_pack[self.language]["connect_prompt"])
             self.disable_controls(True)
-            return
-        
-        for current_device in connected_devices:
-            if current_device.is_usb:
-                try:
-                    ld = create_using_usbmux(serial=current_device.serial)
-                    vals = ld.all_values
-                    print(vals)
-                    self.device = Device(
-                        uuid=current_device.serial,
-                        name=vals['DeviceName'],
-                        version=vals['ProductVersion'],
-                        build=vals['BuildVersion'],
-                        model=vals['ProductType'],
-                        locale=ld.locale,
-                        ld=ld
-                    )
-                    self.update_device_info()
-                    self.disable_controls(False)
-                    return
-                except Exception as e:
-                    self.device_info.setText(self.language_pack[self.language]["error_connecting"] + str(e))
-                    print(traceback.format_exc())
-                    return
 
+    def on_device_error(self, error_msg):
         self.device = None
-        self.device_info.setText(self.language_pack[self.language]["connect_prompt"])
+        self.device_info.setText(f"{self.language_pack[self.language]['error_connecting']}: {error_msg}")
         self.disable_controls(True)
 
     def disable_controls(self, disable):
@@ -317,50 +385,94 @@ class App(QtWidgets.QWidget):
         }
 
         report_crash_services = [
-                "com.apple.ReportCrash",
-                "com.apple.ReportCrash.Jetsam",
-                "com.apple.ReportMemoryException",
-                "com.apple.OTACrashCopier",
-                "com.apple.analyticsd",
-                "com.apple.aslmanager",
-                "com.apple.coresymbolicationd",
-                "com.apple.crash_mover",
-                "com.apple.crashreportcopymobile",
-                "com.apple.DumpBasebandCrash",
-                "com.apple.DumpPanic",
-                "com.apple.logd",
-                "com.apple.logd.admin",
-                "com.apple.logd.events",
-                "com.apple.logd.watchdog",
-                "com.apple.logd_reporter",
-                "com.apple.logd_reporter.report_statistics",
-                "com.apple.system.logger",
-                "com.apple.syslogd",
-                "com.apple.trustd",
-                "com.apple.watchdogd",
+            "com.apple.ReportCrash",
+            "com.apple.ReportCrash.DirectoryService",
+            "com.apple.ReportCrash.Jetsam",
+            "com.apple.ReportCrash.SafetyNet",
+            "com.apple.ReportCrash.StackShot",
+            "com.apple.ReportMemoryException",
+            "com.apple.ReportSystemMemory",
+            "com.apple.OTACrashCopier",
+            "com.apple.ProxiedCrashCopier",
+            "com.apple.ProxiedCrashCopier.ProxyingDevice",
+            "com.apple.analyticsd",
+            "com.apple.awdd",
+            "com.apple.wifianalyticsd",
+            "com.apple.aslmanager",
+            "com.apple.coresymbolicationd",
+            "com.apple.crash_mover",
+            "com.apple.crashreportcopymobile",
+            "com.apple.CrashHousekeeping",
+            "com.apple.DumpBasebandCrash",
+            "com.apple.DumpPanic",
+            "com.apple.logd",
+            "com.apple.logd.admin",
+            "com.apple.logd.events",
+            "com.apple.logd.watchdog",
+            "com.apple.logd_helper",
+            "com.apple.logd_reporter",
+            "com.apple.logd_reporter.report_statistics",
+            "com.apple.system.logger",
+            "com.apple.hangreporter",
+            "com.apple.hangtracerd",
+            "com.apple.spindump",
+            "com.apple.tailspind",
+            "com.apple.rtcreportingd",
+            "com.apple.syslogd",
+            "com.apple.syslog_relay",
+            "com.apple.signpost.signpost_reporter",
+            "com.apple.pluginkit.pkreporter"
         ]
 
         if self.disable_reportcrash_checkbox.isChecked():
-                for service in report_crash_services:
-                        plist[service] = True
+            for service in report_crash_services:
+                plist[service] = True
         else:
-                for service in report_crash_services:
-                        plist.pop(service, None)
+            for service in report_crash_services:
+                plist.pop(service, None)
 
         for key, value in checkbox_settings.items():
-                if value:
-                        plist[key] = True
-                else:
-                        plist.pop(key, None)
+            if value:
+                plist[key] = True
+            else:
+                plist.pop(key, None)
 
         return plistlib.dumps(plist, fmt=plistlib.FMT_XML)
 
     def apply_changes(self):
+        if not self.device:
+            QtWidgets.QMessageBox.warning(self, self.language_pack[self.language]["title"],
+                                          self.language_pack[self.language]["connect_prompt"])
+            return
+
         self.apply_button.setText(self.language_pack[self.language]["applying_changes"])
         self.apply_button.setEnabled(False)
-        QtWidgets.QApplication.processEvents()
+        QApplication.processEvents()
 
-        QtCore.QTimer.singleShot(100, self._execute_changes)
+        self.apply_worker = ApplyWorker(
+            device=self.device,
+            files_to_restore_func=self.modify_disabled_plist,
+            skip_setup_func=self.add_skip_setup,
+            language_pack=self.language_pack,
+            language=self.language
+        )
+        self.apply_worker.progress.connect(self.on_apply_progress)
+        self.apply_worker.finished.connect(self.on_apply_finished)
+        self.apply_worker.start()
+
+    def on_apply_progress(self, message):
+        self.apply_button.setText(message)
+        QApplication.processEvents()
+
+    def on_apply_finished(self, success, message):
+        self.apply_button.setText(self.language_pack[self.language]["menu_options"][7])
+        self.apply_button.setEnabled(True)
+        if success:
+            QtWidgets.QMessageBox.information(self, self.language_pack[self.language]["title"], message)
+        else:
+            QtWidgets.QMessageBox.critical(self, self.language_pack[self.language]["title"],
+                                           f"{self.language_pack[self.language]['error']}\n{message}")
+            print(traceback.format_exc())
 
     def add_skip_setup(self, files_to_restore):
         if self.skip_setup:
@@ -389,42 +501,12 @@ class App(QtWidgets.QWidget):
                 domain="ManagedPreferencesDomain"
             ))
 
-    def _execute_changes(self):
-        try:
-            files_to_restore = []
-            print("\n" + self.language_pack[self.language]["apply_changes"])
-            plist_data = self.modify_disabled_plist()
-
-            files_to_restore.append(FileToRestore(
-                contents=plist_data,
-                restore_path="com.apple.xpc.launchd/disabled.plist",
-                domain="DatabaseDomain",
-                owner=0,
-                group=0
-            ))
-
-            self.add_skip_setup(files_to_restore)
-
-            print(files_to_restore)
-            
-            restore_files(files=files_to_restore, reboot=True, lockdown_client=self.device.ld)
-
-            QtWidgets.QMessageBox.information(self, "Success", self.language_pack[self.language]["success"])
-        except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "Error", self.language_pack[self.language]["error"] + str(e))
-            print(traceback.format_exc())
-        finally:
-            self.apply_button.setText(self.language_pack[self.language]["menu_options"][7])
-            self.apply_button.setEnabled(True)
-
     def change_language(self, lang_code):
         self.language = lang_code
         self.update_ui_texts()
 
     def update_ui_texts(self):
         self.setWindowTitle(self.language_pack[self.language]["title"])
-
-        # Update all UI texts based on the new language
         self.modified_by_label.setText(self.language_pack[self.language]["modified_by"])
         
         if self.device:
@@ -434,33 +516,26 @@ class App(QtWidgets.QWidget):
         
         menu_options = self.language_pack[self.language]["menu_options"]
         menu_notes = self.language_pack[self.language]["menu_notes"]
-        # Set checkbox labels and tooltips
+
         self.thermalmonitord_checkbox.setText(menu_options[0])
         self.thermalmonitord_checkbox.setToolTip(menu_notes[0])
-    
         self.disable_ota_checkbox.setText(menu_options[1])
         self.disable_ota_checkbox.setToolTip(menu_notes[1])
-    
         self.disable_usage_tracking_checkbox.setText(menu_options[2])
         self.disable_usage_tracking_checkbox.setToolTip(menu_notes[2])
-    
         self.disable_gamed_checkbox.setText(menu_options[3])
         self.disable_gamed_checkbox.setToolTip(menu_notes[3])
-    
         self.disable_screentime_checkbox.setText(menu_options[4])
         self.disable_screentime_checkbox.setToolTip(menu_notes[4])
-    
         self.disable_reportcrash_checkbox.setText(menu_options[5])
         self.disable_reportcrash_checkbox.setToolTip(menu_notes[5])
-
         self.disable_tipsd_checkbox.setText(menu_options[6])
         self.disable_tipsd_checkbox.setToolTip(menu_notes[6])
 
-
-        # Set button texts
         self.apply_button.setText(menu_options[7])
         self.refresh_button.setText(menu_options[8])
         self.language_menu_button.setText(menu_options[9])
+
 
 if __name__ == "__main__":
     import sys
