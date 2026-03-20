@@ -5,7 +5,7 @@ import asyncio
 
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtSvg import QSvgWidget
-from PyQt5.QtCore import QLocale, QThread, pyqtSignal, QTimer
+from PyQt5.QtCore import QLocale, QThread, pyqtSignal
 from PyQt5.QtGui import QPalette, QColor
 from pymobiledevice3 import usbmux
 from PyQt5.QtWidgets import QApplication
@@ -21,8 +21,7 @@ palette.setColor(QPalette.WindowText, QColor(255, 255, 255))
 
 
 class DeviceWorker(QThread):
-    """Worker to fetch device info asynchronously."""
-    device_ready = pyqtSignal(object)  # emits Device object
+    device_ready = pyqtSignal(object)
     error = pyqtSignal(str)
 
     def run(self):
@@ -37,14 +36,12 @@ class DeviceWorker(QThread):
             loop.close()
 
     async def _get_device(self):
-        # List devices asynchronously
         connected_devices = await usbmux.list_devices()
         for current_device in connected_devices:
             if current_device.is_usb:
                 try:
                     ld = await create_using_usbmux(serial=current_device.serial)
                     vals = ld.all_values
-                    # Get locale from all_values (fallback to 'en' if missing)
                     locale = vals.get('Locale', 'en')
                     return Device(
                         uuid=current_device.serial,
@@ -57,13 +54,12 @@ class DeviceWorker(QThread):
                     )
                 except Exception as e:
                     raise Exception(f"Error connecting to device {current_device.serial}: {e}")
-        return None  # No USB device found
+        return None
 
 
 class ApplyWorker(QThread):
-    """Worker to apply changes asynchronously."""
-    finished = pyqtSignal(bool, str)  # success, message
-    progress = pyqtSignal(str)  # status message
+    finished = pyqtSignal(bool, str)
+    progress = pyqtSignal(str)
 
     def __init__(self, device, files_to_restore_func, skip_setup_func, language_pack, language):
         super().__init__()
@@ -87,7 +83,7 @@ class ApplyWorker(QThread):
     async def _apply(self):
         files_to_restore = []
         self.progress.emit(self.language_pack[self.language]["apply_changes"])
-        plist_data = self.files_to_restore_func()  # sync function, returns plist data
+        plist_data = self.files_to_restore_func()
         files_to_restore.append(FileToRestore(
             contents=plist_data,
             restore_path="com.apple.xpc.launchd/disabled.plist",
@@ -95,8 +91,10 @@ class ApplyWorker(QThread):
             owner=0,
             group=0
         ))
-        self.skip_setup_func(files_to_restore)  # sync function, modifies files_to_restore
-        await restore_files(files=files_to_restore, reboot=True, lockdown_client=self.device.ld)
+        self.skip_setup_func(files_to_restore)
+        # Use async context manager
+        async with restore_files(files=files_to_restore, reboot=True, lockdown_client=self.device.ld):
+            pass  # The restoration is handled inside the context manager
 
 
 class App(QtWidgets.QWidget):
@@ -233,7 +231,7 @@ class App(QtWidgets.QWidget):
         }
 
         self.init_ui()
-        self.get_device_info()  # start async detection
+        self.get_device_info()
 
     def set_font(self):
         if platform.system() == "Windows":
@@ -242,7 +240,6 @@ class App(QtWidgets.QWidget):
 
     def init_ui(self):
         self.setWindowTitle(self.language_pack[self.language]["title"])
-
         self.set_font()
         
         self.layout = QtWidgets.QVBoxLayout()
@@ -251,7 +248,6 @@ class App(QtWidgets.QWidget):
         self.layout.addWidget(self.modified_by_label)
 
         self.icon_layout = QtWidgets.QHBoxLayout()
-
         self.icon_layout.setAlignment(QtCore.Qt.AlignLeft)
         self.icon_layout.setSpacing(10)
 
@@ -259,9 +255,7 @@ class App(QtWidgets.QWidget):
         self.github_icon.setFixedSize(24, 24)
         self.github_icon.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
         self.github_icon.mouseReleaseEvent = lambda event: self.open_link("https://github.com/mikasa-san/QuietDaemon")
-
         self.icon_layout.addWidget(self.github_icon)
-
         self.layout.addLayout(self.icon_layout)
 
         self.device_info = QtWidgets.QLabel(self.language_pack[self.language]["backup_warning"])
@@ -324,9 +318,8 @@ class App(QtWidgets.QWidget):
             print(f"Error opening link {url}: {str(e)}")
 
     def get_device_info(self):
-        # Disable controls while fetching
         self.disable_controls(True)
-        self.device_info.setText(self.language_pack[self.language]["apply_changes"])  # temporary status
+        self.device_info.setText(self.language_pack[self.language]["apply_changes"])
 
         if self.device_worker and self.device_worker.isRunning():
             self.device_worker.terminate()
@@ -432,17 +425,17 @@ class App(QtWidgets.QWidget):
         ]
 
         if self.disable_reportcrash_checkbox.isChecked():
-                for service in report_crash_services:
-                        plist[service] = True
+            for service in report_crash_services:
+                plist[service] = True
         else:
-                for service in report_crash_services:
-                        plist.pop(service, None)
+            for service in report_crash_services:
+                plist.pop(service, None)
 
         for key, value in checkbox_settings.items():
-                if value:
-                        plist[key] = True
-                else:
-                        plist.pop(key, None)
+            if value:
+                plist[key] = True
+            else:
+                plist.pop(key, None)
 
         return plistlib.dumps(plist, fmt=plistlib.FMT_XML)
 
@@ -452,12 +445,10 @@ class App(QtWidgets.QWidget):
                                           self.language_pack[self.language]["connect_prompt"])
             return
 
-        # Disable button and show progress
         self.apply_button.setText(self.language_pack[self.language]["applying_changes"])
         self.apply_button.setEnabled(False)
         QApplication.processEvents()
 
-        # Start worker
         self.apply_worker = ApplyWorker(
             device=self.device,
             files_to_restore_func=self.modify_disabled_plist,
@@ -516,7 +507,6 @@ class App(QtWidgets.QWidget):
 
     def update_ui_texts(self):
         self.setWindowTitle(self.language_pack[self.language]["title"])
-
         self.modified_by_label.setText(self.language_pack[self.language]["modified_by"])
         
         if self.device:
@@ -529,22 +519,16 @@ class App(QtWidgets.QWidget):
 
         self.thermalmonitord_checkbox.setText(menu_options[0])
         self.thermalmonitord_checkbox.setToolTip(menu_notes[0])
-    
         self.disable_ota_checkbox.setText(menu_options[1])
         self.disable_ota_checkbox.setToolTip(menu_notes[1])
-    
         self.disable_usage_tracking_checkbox.setText(menu_options[2])
         self.disable_usage_tracking_checkbox.setToolTip(menu_notes[2])
-    
         self.disable_gamed_checkbox.setText(menu_options[3])
         self.disable_gamed_checkbox.setToolTip(menu_notes[3])
-    
         self.disable_screentime_checkbox.setText(menu_options[4])
         self.disable_screentime_checkbox.setToolTip(menu_notes[4])
-    
         self.disable_reportcrash_checkbox.setText(menu_options[5])
         self.disable_reportcrash_checkbox.setToolTip(menu_notes[5])
-
         self.disable_tipsd_checkbox.setText(menu_options[6])
         self.disable_tipsd_checkbox.setToolTip(menu_notes[6])
 
