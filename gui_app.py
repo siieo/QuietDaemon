@@ -44,13 +44,15 @@ class DeviceWorker(QThread):
                 try:
                     ld = await create_using_usbmux(serial=current_device.serial)
                     vals = ld.all_values
+                    # Get locale from all_values (fallback to 'en' if missing)
+                    locale = vals.get('Locale', 'en')
                     return Device(
                         uuid=current_device.serial,
                         name=vals['DeviceName'],
                         version=vals['ProductVersion'],
                         build=vals['BuildVersion'],
                         model=vals['ProductType'],
-                        locale=ld.locale,
+                        locale=locale,
                         ld=ld
                     )
                 except Exception as e:
